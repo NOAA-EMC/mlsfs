@@ -1,0 +1,32 @@
+[project]
+name = "mlsfs"
+version="0.1.0"
+description = "Machine Learning for Seasonal Forecast System"
+authors = [
+{name="Linlin Cui", email="linlin.cui@noaa.gov"},
+{name="Jun Wang", email="jun.wang@noaa.gov"},
+]
+license = {file = "LICENSE.txt"}
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "xarray",
+    "netCDF4",
+    "dask[complete]",
+    "zarr",
+    "cftime",
+    "gcsfs",
+    "s3fs",
+    "fsspec",
+]
+
+[project.urls]
+source="https://github.com/NOAA-EMC/mlsfs"
+
+[build-system]
+requires = ["setuptools>=64.0.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["mlsfs"]
