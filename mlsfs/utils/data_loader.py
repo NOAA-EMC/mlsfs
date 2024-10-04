@@ -1,4 +1,5 @@
 import logging
+import glob
 
 import numpy as np
 import xarray as xr
@@ -6,7 +7,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from utils.img_utils import reshape_fields
+from mlsfs.utils.img_utils import reshape_fields
 
 def get_data_loader(params, files_pattern, distributed, train, world_size, rank):
     dataset = GetDataset(params, files_pattern, train)
@@ -51,19 +52,19 @@ class GetDataset(Dataset):
                 'u_component_of_wind', 'v_component_of_wind', 
                 'vertical_velocity', 'temperature', 'specific_humidity', 'geopotential'
             ],
-            'prescribled': ['geopotential_at_surface', 'land_sea_mask', 'lake_cover'],
+            #'prescribled': ['geopotential_at_surface', 'land_sea_mask', 'lake_cover'],
         }
         self.levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
 
+        self.orography = params.orography
+        self.lsm = params.lsm
+        self.lake = params.lake
         self.normalize = True
 
         self._get_files_stats()
 
     def _get_files_stats(self):
-        if self.train:
-            self.files_paths = [f'{self.location}/era5_{year}_6h-240x121.zarr' for year in range(1979, 2017)]
-        else:
-            self.files_paths = [f'{self.location}/era5_{year}_6h-240x121.zarr' for year in range(2017, 2021)]
+        self.files_paths = glob.glob(f'{self.location}/*.zarr')
         self.n_years = len(self.files_paths)
 
         logging.info(f'Getting file stats from {self.files_paths[0]}')
@@ -81,13 +82,27 @@ class GetDataset(Dataset):
     def _open_files(self, year_idx):
         self.files[year_idx] = xr.open_zarr(self.files_paths[year_idx])
 
+        if self.orography:
+            self.orog = np.load(self.orography_file)
+        else:
+            self.orog = None
+
+        if self.lsm:
+            self.lsm = np.load(self.lsm_file)
+        else:
+            self.lsm = None
+
+        if self.lake:
+            self.lake = np.load(self.lake_file)
+        else:
+            self.lake = None
+
     def __len__(self):
         return self.n_samples_total
 
     def __getitem__(self, global_idx):
         year_idx = int(global_idx / self.n_samples_per_year)
         local_idx = int(global_idx % self.n_samples_per_year)
-        logging.info(f'year_idx is {year_idx}, local_idx is {local_idx}')
 
         if self.files[year_idx] is None:
             self._open_files(year_idx)
@@ -116,15 +131,11 @@ class GetDataset(Dataset):
                             data.append(np.nan_to_num(values[:, ilev, :, :], nan=0.0))
                         else:
                             data.append(values[:, ilev, :, :])
-                
+
                 else:
-                    if key == 'prescribled':
-                        print('Concatenate forcing to the data array')
-                    else:
-                        raise valueError(f'{key} is not in ["surface", "pressure_level", "prescribed"]')
+                    raise valueError(f'{key} is not in ["surface", "pressure_level"]')
         
         data = np.array(data)
 
-
-
-        return reshape_fields(np.squeeze(data[:,0,:,:]), 'inp', self.normalize), reshape_fields(np.squeeze(data[:,1,:,:]), 'tar', self.normalize)
+        return reshape_fields(np.squeeze(data[:,0,:,:]), 'inp', self.params, self.normalize, self.orog, self.lsm, self.lake), \
+            reshape_fields(np.squeeze(data[:,1,:,:]), 'tar', self.params, self.normalize, self.orog, self.lsm, self.lake)

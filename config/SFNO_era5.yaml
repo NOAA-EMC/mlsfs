@@ -1,0 +1,73 @@
+### base config ###
+full_field: &FULL_FIELD
+  loss: 'l2'
+  lr: 1E-3
+  scheduler: 'ReduceLROnPlateau'
+  num_data_workers: 0 
+  dt: 1 # how many timesteps ahead the model will predict
+  n_history: 0 #how many previous timesteps to consider
+
+  #sfno hyperparams
+  num_blocks: 8
+  nettype: 'sfno'
+  patch_size: 8
+  width: 56
+  modes: 32
+  #options default, residual
+  target: 'default' 
+  #in_channels: [0,1]
+  #out_channels: [0,1] #must be same as in_channels if prediction_type == 'iterative'
+  normalization: 'zscore' #options zscore (minmax not supported) 
+  train_data_path: '/lustre/Linlin.Cui/s2s/data/train' 
+  valid_data_path: '/lustre/Linlin.Cui/s2s/data/test' 
+  exp_dir: '/lustre/Linlin.Cui/s2s/results'
+  global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016.npy'
+  global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016.npy'
+
+  orography: !!bool False
+  orography_file: None
+
+  log_to_screen: !!bool True
+  log_to_wandb: !!bool False
+  save_checkpoint: !!bool True
+
+  enable_nhwc: !!bool False
+  optimizer_type: 'Adam'
+  crop_size_x: None
+  crop_size_y: None
+
+  two_step_training: !!bool False
+  plot_animations: !!bool False
+
+  add_noise: !!bool False
+  noise_std: 0
+
+sfno_backbone: &backbone
+  <<: *FULL_FIELD
+  log_to_wandb: !!bool False
+  lr: 1E-3
+  batch_size: 64
+  max_epochs: 500
+  scheduler: 'CosineAnnealingLR'
+  num_channels: 89
+  orography: !!bool false
+  orography_file: none 
+  lsm: !!bool False
+  lsm_file: None
+  lake: !!bool False
+  lake_file: None
+  exp_dir: '/lustre/Linlin.Cui/s2s/results'
+  train_data_path: '/lustre/Linlin.Cui/s2s/data/train'
+  valid_data_path: '/lustre/Linlin.Cui/s2s/data/test' 
+  global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016.npy'
+  global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016.npy'
+
+sfno_backbone_finetune: 
+  <<: *backbone
+  lr: 5E-6
+  batch_size: 64
+  log_to_wandb: !!bool False
+  max_epochs: 50
+  pretrained: !!bool True
+  two_step_training: !!bool True
+  pretrained_ckpt_path: '/lustre/Linlin.Cui/s2s/results/weights.tar'
