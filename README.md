@@ -1,7 +1,7 @@
 # Machine Learning for Seasonal Forecast System (SFS)
 
 ## Overview
-This project utilizes Spherical Fourier Neural Operators (SFNO)](https://arxiv.org/pdf/2306.03838) developed by NVIDIA. 
+This project utilizes [Spherical Fourier Neural Operators (SFNO)](https://arxiv.org/pdf/2306.03838) developed by NVIDIA. 
 
 ## Installation
 The recommended way to setup the environment for installing `mlsfs` is to use `conda` with the environment.yml:

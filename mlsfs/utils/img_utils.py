@@ -26,12 +26,12 @@ def reshape_fields(img, inp_or_tar, params, normalize=True, orog=None, lsm=None,
         img /= stds
 
     if params.orography and inp_or_tar == 'inp':
-        img = np.concatenate((img, np.expand_dims(orog, axis=0)), axis=0)
+        img = np.concatenate((img, np.expand_dims(orog.transpose(), axis=0)), axis=0)
 
-    if params.lsm and inp_or_tar == 'inp':
-        img = np.concatenate((img, np.expand_dims(lsm, axis=0)), axis=0)
+    if params.lsmask and inp_or_tar == 'inp':
+        img = np.concatenate((img, np.expand_dims(lsm.transpose(), axis=0)), axis=0)
 
-    if params.lake and inp_or_tar == 'inp':
-        img = np.concatenate((img, np.expand_dims(lake, axis=0)), axis=0)
+    if params.lakemask and inp_or_tar == 'inp':
+        img = np.concatenate((img, np.expand_dims(lake.transpose(), axis=0)), axis=0)
 
     return torch.as_tensor(img)

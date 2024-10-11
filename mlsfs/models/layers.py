@@ -301,6 +301,7 @@ class SpectralConv2d(nn.Module):
         B, C, H, W = x.shape
 
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = x.to(torch.float32)
             x = self.forward_transform(x)
             x = torch.view_as_real(x)
@@ -318,6 +319,7 @@ class SpectralConv2d(nn.Module):
         x = torch.view_as_complex(x)
 
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = x.to(torch.float32)
             x = torch.view_as_complex(x)
             x = self.inverse_transform(x)
@@ -397,6 +399,7 @@ class SpectralConvS2(nn.Module):
         B, C, H, W = x.shape
 
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = x.to(torch.float32)
             x = self.forward_transform(x)
             x = torch.view_as_real(x)
@@ -412,6 +415,7 @@ class SpectralConvS2(nn.Module):
         x = F.softshrink(modes, lambd=self.sparsity_threshold)
 
         with amp.autocast(enabled=False):
+        #with torchamp.autocast('cuda'):
             x = x.to(torch.float32)
             x = torch.view_as_complex(x)
             x = self.inverse_transform(x)
@@ -513,6 +517,7 @@ class SpectralAttention2d(nn.Module):
 
         # FWD transform
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = x.to(torch.float32)
             x = self.forward_transform(x)
             x = torch.view_as_real(x)
@@ -522,6 +527,7 @@ class SpectralAttention2d(nn.Module):
 
         # BWD transform
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = torch.view_as_complex(x)
             x = self.inverse_transform(x)
             x = x.to(dtype)
@@ -621,6 +627,7 @@ class SpectralAttentionS2(nn.Module):
 
         # FWD transform
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = x.to(torch.float32)
             x = self.forward_transform(x)
             x = torch.view_as_real(x)
@@ -630,6 +637,7 @@ class SpectralAttentionS2(nn.Module):
 
         # BWD transform
         with amp.autocast(enabled=False):
+        #with torch.amp.autocast('cuda'):
             x = torch.view_as_complex(x)
             x = self.inverse_transform(x)
             x = x.to(dtype)

@@ -15,15 +15,16 @@ full_field: &FULL_FIELD
   modes: 32
   #options default, residual
   target: 'default' 
-  #in_channels: [0,1]
+  #n_in_channels: [0,1]
   #out_channels: [0,1] #must be same as in_channels if prediction_type == 'iterative'
   normalization: 'zscore' #options zscore (minmax not supported) 
   train_data_path: '/lustre/Linlin.Cui/s2s/data/train' 
   valid_data_path: '/lustre/Linlin.Cui/s2s/data/test' 
   exp_dir: '/lustre/Linlin.Cui/s2s/results'
-  global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016.npy'
-  global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016.npy'
+  global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016_reordered.npy'
+  global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016_reordered.npy'
 
+  normalize: !!bool True
   orography: !!bool False
   orography_file: None
 
@@ -47,27 +48,36 @@ sfno_backbone: &backbone
   log_to_wandb: !!bool False
   lr: 1E-3
   batch_size: 64
-  max_epochs: 500
+  max_epochs: 100
   scheduler: 'CosineAnnealingLR'
+  scheduler_T_max: 70
+  scheduler_factor: 0.1
+  scheduler_patience: 10
+  scheduler_step_size: 100
+  scheduler_gamma: 0.5
+  lr_warmup_steps: 0
+
   num_channels: 89
-  orography: !!bool false
-  orography_file: none 
-  lsm: !!bool False
-  lsm_file: None
-  lake: !!bool False
-  lake_file: None
+  orography: !!bool True
+  orography_file: /lustre/Linlin.Cui/s2s/data/static/geopotential_at_surface_normalized.npy
+  lsmask: !!bool True
+  lsm_file: /lustre/Linlin.Cui/s2s/data/static/land_sea_mask.npy
+  lakemask: !!bool False
+  lake_file: /lustre/Linlin.Cui/s2s/data/static/lake_cover.npy
   exp_dir: '/lustre/Linlin.Cui/s2s/results'
   train_data_path: '/lustre/Linlin.Cui/s2s/data/train'
   valid_data_path: '/lustre/Linlin.Cui/s2s/data/test' 
-  global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016.npy'
-  global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016.npy'
+  global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016_reordered.npy'
+  global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016_reordered.npy'
 
 sfno_backbone_finetune: 
   <<: *backbone
-  lr: 5E-6
+  lr: 1E-6
   batch_size: 64
   log_to_wandb: !!bool False
-  max_epochs: 50
+  max_epochs: 20
+  scheduler: "CosineAnnealingLR"
+  scheduler_T_max: 20
   pretrained: !!bool True
   two_step_training: !!bool True
   pretrained_ckpt_path: '/lustre/Linlin.Cui/s2s/results/weights.tar'

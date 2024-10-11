@@ -10,7 +10,7 @@ from torch.utils.checkpoint import checkpoint
 
 # from apex.normalization import FusedLayerNorm
 
-from torch.utils.checkpoint import checkpoint
+#from torch.utils.checkpoint import checkpoint
 
 # helpers
 from mlsfs.models.layers import (
@@ -28,13 +28,14 @@ from mlsfs.models.layers import (
 )
 
 import torch_harmonics as harmonics
+#from torch_harmonics.distributed import DistributedRealSHT, DistributedInverseRealSHT
 
 # to fake the sht module with ffts
 from mlsfs.models.layers import RealFFT2, InverseRealFFT2
 
 from mlsfs.models.contractions import *
 
-# from .fourcastnetv2 import activations
+# from .mlsfs.models import activations
 from mlsfs.models.activations import *
 
 
@@ -87,7 +88,7 @@ class SpectralFilterLayer(nn.Module):
                 bias=False,
             )
 
-        elif filter_type == "linear" and isinstance(forward_transform, RealSHT):
+        elif filter_type == "linear" and isinstance(forward_transform, harmonics.RealSHT):
             self.filter = SpectralConvS2(
                 forward_transform,
                 inverse_transform,
@@ -192,7 +193,7 @@ class FourierNeuralOperatorBlock(nn.Module):
                 hidden_features=mlp_hidden_dim,
                 act_layer=act_layer,
                 drop_rate=drop_rate,
-                checkpointing=checkpointing,
+                checkpointing=False,
             )
 
         if outer_skip == "linear":
@@ -251,10 +252,10 @@ class FourierNeuralOperatorNet(nn.Module):
         self,
         spectral_transform="sht",
         filter_type="non-linear",
-        img_size=(721, 1440),
+        img_size=(121, 240),
         scale_factor=6,
-        in_chans=73,
-        out_chans=73,
+        in_chans=89,
+        out_chans=89,
         embed_dim=256,
         num_layers=12,
         mlp_mode="distributed",
@@ -348,7 +349,7 @@ class FourierNeuralOperatorNet(nn.Module):
             output_bias=False,
             act_layer=encoder_act,
             drop_rate=0.0,
-            checkpointing=checkpointing,
+            checkpointing=False,
         )
 
         # self.input_encoding = nn.Conv2d(self.in_chans, self.embed_dim, 1)
@@ -457,7 +458,7 @@ class FourierNeuralOperatorNet(nn.Module):
             output_bias=False,
             act_layer=decoder_act,
             drop_rate=0.0,
-            checkpointing=checkpointing,
+            checkpointing=False,
         )
 
         trunc_normal_(self.pos_embed, std=0.02)

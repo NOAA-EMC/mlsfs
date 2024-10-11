@@ -44,27 +44,28 @@ class GetDataset(Dataset):
             'surface': [
                 '10m_u_component_of_wind', '10m_v_component_of_wind', 
                 '2m_temperature', 'mean_sea_level_pressure',
-                'total_precipitation_6hr', 'sea_ice_cover', 'total_cloud_cover', 'sea_surface_temperature',
-                'mean_surface_latent_heat_flux', 'mean_surface_sensible_heat_flux', 'toa_incident_solar_radiation',
-                #'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux'
-                ],
+                'total_precipitation_6hr', 'total_cloud_cover', 
+                'mean_surface_latent_heat_flux', 'mean_surface_sensible_heat_flux',
+                'sea_ice_cover', 'sea_surface_temperature',
+            ],
             'pressure_level': [
                 'u_component_of_wind', 'v_component_of_wind', 
                 'vertical_velocity', 'temperature', 'specific_humidity', 'geopotential'
             ],
-            #'prescribled': ['geopotential_at_surface', 'land_sea_mask', 'lake_cover'],
+            'forcing': ['toa_incident_solar_radiation'],
         }
         self.levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
 
         self.orography = params.orography
-        self.lsm = params.lsm
-        self.lake = params.lake
-        self.normalize = True
+        self.lsmask = params.lsmask
+        self.lakemask = params.lakemask
+        self.normalize = params.normalize
 
         self._get_files_stats()
 
     def _get_files_stats(self):
         self.files_paths = glob.glob(f'{self.location}/*.zarr')
+        self.files_paths.sort()
         self.n_years = len(self.files_paths)
 
         logging.info(f'Getting file stats from {self.files_paths[0]}')
@@ -83,17 +84,17 @@ class GetDataset(Dataset):
         self.files[year_idx] = xr.open_zarr(self.files_paths[year_idx])
 
         if self.orography:
-            self.orog = np.load(self.orography_file)
+            self.orog = np.load(self.params['orography_file'])[:,::-1] #reverse latitude to [90, -90]
         else:
             self.orog = None
 
-        if self.lsm:
-            self.lsm = np.load(self.lsm_file)
+        if self.lsmask:
+            self.lsm = np.load(self.params['lsm_file'])[:,::-1] #reverse latitude to [90, -90]
         else:
             self.lsm = None
 
-        if self.lake:
-            self.lake = np.load(self.lake_file)
+        if self.lakemask:
+            self.lake = np.load(self.params['lake_file'])[:,::-1] #reverse latitude to [90, -90]
         else:
             self.lake = None
 
@@ -112,28 +113,30 @@ class GetDataset(Dataset):
 
         step = 0 if local_idx >= self.n_samples_per_year - self.dt else self.dt 
 
+        #logging.info(f'year_idx is {year_idx}, local_idx is {local_idx}')
+
         data = []
         for key, variables in self.attrs.items():
             for var in variables:
-                if key == 'surface':
-                    values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'latitude', 'longitude').values
+                if key == 'surface' or key == 'forcing':
+                    values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
 
                     # check nan
                     if np.sum(np.isnan(values)) > 1:
-                        data.append(np.nan_to_num(values, nan=-9999.))
+                        data.append(np.nan_to_num(values, nan=-99.))
                     else:
                         data.append(values)
 
                 elif key == 'pressure_level':
                     values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
                     for ilev in np.arange(len(self.levels)):
-                        if np.sum(np.isnan(values[:, ilev, :, :])) > 1:
-                            data.append(np.nan_to_num(values[:, ilev, :, :], nan=0.0))
-                        else:
-                            data.append(values[:, ilev, :, :])
+                        #if np.sum(np.isnan(values[:, ilev, :, :])) > 1:
+                        #    data.append(np.nan_to_num(values[:, ilev, ::-1, :], nan=0.0))
+                        #else:
+                        data.append(values[:, ilev, ::-1, :]) #reverse latitude
 
                 else:
-                    raise valueError(f'{key} is not in ["surface", "pressure_level"]')
+                    raise valueError(f'{key} is not in ["surface", "pressure_level", "forcing"]')
         
         data = np.array(data)
 
