@@ -1,1 +1,1 @@
-from mlsfs.models.sfnonet import FourierNeuralOperatorNet as SFNO
+from mlsfs.models.sfnonet import SphericalFourierNeuralOperatorNet as SFNO

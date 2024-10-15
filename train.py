@@ -26,45 +26,16 @@ from mlsfs.utils.YParams import YParams
 from mlsfs.utils.grids import GridQuadrature
 from mlsfs.utils.losses import l2loss_sphere
 from mlsfs.utils.weighted_acc_rmse import weighted_acc, weighted_rmse, weighted_rmse_torch, unlog_tp_torch
-#from fourcastnetv2.sfno import SphericalFourierNeuralOperatorNet as SFNO
 from mlsfs.models import SFNO
-from torch_harmonics.examples.pde_sphere import SphereSolver
-
-#def l2loss_sphere(solver, prd, tar, relative=False, squared=True):
-#    loss = solver.integrate_grid((prd - tar)**2, dimensionless=True).sum(dim=-1)
-#    if relative:
-#        loss = loss / solver.integrate_grid(tar**2, dimensionless=True).sum(dim=-1)
-#    
-#    if not squared:
-#        loss = torch.sqrt(loss)
-#    loss = loss.mean()
-#
-#    return loss
-#
-#def spectral_l2loss_sphere(solver, prd, tar, relative=False, squared=True):
-#    # compute coefficients
-#    coeffs = torch.view_as_real(solver.sht(prd - tar))
-#    coeffs = coeffs[..., 0]**2 + coeffs[..., 1]**2
-#    norm2 = coeffs[..., :, 0] + 2 * torch.sum(coeffs[..., :, 1:], dim=-1)
-#    loss = torch.sum(norm2, dim=(-1,-2))
-#
-#    if relative:
-#        tar_coeffs = torch.view_as_real(solver.sht(tar))
-#        tar_coeffs = tar_coeffs[..., 0]**2 + tar_coeffs[..., 1]**2
-#        tar_norm2 = tar_coeffs[..., :, 0] + 2 * torch.sum(tar_coeffs[..., :, 1:], dim=-1)
-#        tar_norm2 = torch.sum(tar_norm2, dim=(-1,-2))
-#        loss = loss / tar_norm2
-#
-#    if not squared:
-#        loss = torch.sqrt(loss)
-#    loss = loss.mean()
-#
-#    return loss
 
 class Trainer:
 
     def count_parameters(self):
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+
+    def get_lr(self):
+        for param_group in self.optimizer.param_groups:
+            return param_group["lr"]
 
     def __init__(self, params, world_rank):
         # set seed
@@ -93,13 +64,22 @@ class Trainer:
         nlon = self.train_dataset.img_shape_y
         
         # print(len(train_dataset))
-        self.solver = SphereSolver(nlat, nlon, params.dt).to(self.device).float()
+        #self.solver = SphereSolver(nlat, nlon, params.dt).to(self.device).float()
+        self.quadrature = GridQuadrature(
+            quadrature_rule = "legendre-gauss",
+            img_shape=(nlat, nlon),
+            normalize=True, 
+        ).to(self.device)
 
         if params.nettype == 'sfno':
             self.model = SFNO(
-                img_size=(nlat, nlon),
-                in_chans=params.n_in_channels, 
-                out_chans=params.n_out_channels
+                filter_type = params.filter_type,
+                img_size = (nlat, nlon),
+                in_chans = params.n_in_channels, 
+                out_chans = params.n_out_channels,
+                embed_dim = params.embed_dim,
+                num_layers = params.num_layers,
+                mlp_mode = params.mlp_mode,
             ).to(self.device)
         else:
             raise Exception("Model {params.nettype} is not implemented")
@@ -139,7 +119,7 @@ class Trainer:
         if params.scheduler == 'ReduceLROnPlateau':
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.2, patience=5, mode='min')
         elif params.scheduler == 'CosineAnnealingLR':
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=params.max_epochs, last_epoch=self.startEpoch-1)
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=params.max_epochs)
         else:
             self.scheduler = None
 
@@ -181,14 +161,14 @@ class Trainer:
                 if self.params.save_checkpoint:
                     self.save_checkpoint(self.params.checkpoint_path)
                     if valid_logs['valid_loss'] <= best_valid_loss:
-                        logging.info('Val loss improved from {} to {}'.format(best_valid_loss, valid_logs['valid_loss']))
+                        logging.info(f"Val loss improved from {best_valid_loss} to {valid_logs['valid_loss']}, lr {self.get_lr()}")
                         self.save_checkpoint(self.params.best_checkpoint_path)
                         best_valid_loss = valid_logs['valid_loss']
 
             if self.params.log_to_screen:
                 logging.info('Time taken for epoch {} is {} sec'.format(epoch + 1, time.time()-start))
                 #logging.info('train data time={}, train step time={}, valid step time={}'.format(data_time, tr_time, valid_time))
-                logging.info('Accumulated training loss: {} relative validation loss: {}'.format(train_logs['loss'], valid_logs['valid_loss']))
+                logging.info(f"Accumulated training loss: {train_logs['loss']} validation loss: {valid_logs['valid_loss']} lr: {self.get_lr()}")
 
     def train_one_epoch(self):
         self.epoch += 1
@@ -197,12 +177,12 @@ class Trainer:
         #train_loss = 0
         self.model.train()
 
-        max_train_batch = 10
+        #max_train_batch = 10
 
         for i, data in enumerate(self.train_data_loader, 0):
             #logging.info(f'training on batch {i}')
-            if i >= max_train_batch:
-                break
+            #if i >= max_train_batch:
+            #    break
             self.iters += 1
             data_start = time.time()
             
@@ -216,7 +196,7 @@ class Trainer:
             #with torch.amp.autocast('cuda'):
                 if self.params.two_step_training:
                     gen_step_one = self.model(inp) #.to(self.device, dtype=torch.float)
-                    loss_step_one = spectral_l2loss_sphere(self.solver, gen_step_one, tar[:, 0:self.params.n_out_channels])
+                    loss_step_one = l2loss_sphere(self.quadrature, gen_step_one, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
                     ##Temporarily disable step two because of memory issue (lcui)
                     #gen_step_two = self.model(gen_step_one) #.to(self.device, dtype=torch.float)
                     #loss_step_two = spectral_l2loss_sphere(self.solver, gen_step_two, tar[:, self.params.n_out_channels:2*self.params.n_out_channels], relative=False)
@@ -224,7 +204,7 @@ class Trainer:
                     loss = loss_step_one
                 else:
                     gen = self.model(inp) #.to(self.device, dtype=torch.float)
-                    loss = spectral_l2loss_sphere(self.solver, gen, tar[:, 0:self.params.n_out_channels])
+                    loss = l2loss_sphere(self.quadrature, gen, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
             
 
             #train_loss += (loss.item()/self.params.world_size)*inp.size[0]
@@ -265,7 +245,7 @@ class Trainer:
         return tr_time, logs
 
     def validate_one_epoch(self):
-        max_valid_batch = 2 #do validation on first 8 batches
+        #max_valid_batch = 2 #do validation on first 8 batches
 
         if self.params.normalization == 'minmax':
             raise Exception("minmax normalization not supported")
@@ -286,13 +266,13 @@ class Trainer:
         with torch.no_grad():
             for i, data in enumerate(self.valid_data_loader, 0):
                 #logging.info(f'valid on batch {i}')
-                if i >= max_valid_batch:
-                    break
+                #if i >= max_valid_batch:
+                #    break
                 inp, tar = map(lambda x: x.to(self.device, dtype=torch.float), data)
 
                 if self.params.two_step_training:
                     gen_step_one = self.model(inp.to(self.device, dtype=torch.float))
-                    loss_step_one = spectral_l2loss_sphere(self.solver, gen_step_one, tar[:, 0:self.params.n_out_channels])
+                    loss_step_one = l2loss_sphere(self.quadrature, gen_step_one, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
 
                     ##Temporarily disable step two because of memory issue (lcui)
                     #gen_step_two = self.model(gen_step_one.to(self.device, dtype=torch.float))
@@ -301,7 +281,7 @@ class Trainer:
                     valid_loss += loss_step_one
                 else:
                     gen = self.model(inp.to(self.device, dtype = torch.float))
-                    valid_loss += spectral_l2loss_sphere(self.solver, gen, tar[:, 0:self.params.n_out_channels])
+                    valid_loss += l2loss_sphere(self.quadrature, gen, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
 
                 valid_steps += 1.
 
@@ -460,6 +440,28 @@ if __name__ == "__main__":
     params['n_in_channels'] = params.num_channels
     logging.info(f"n_in_channels: {params['n_in_channels']}")
     logging.info(f"n_out_channels: {params['n_out_channels']}")
+
+    channel_names = ['u10', 'v10', 't2m', 'msl', 'tp', 'cloud', 'lh', 'sh', 'ice', 'sst']
+    levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
+    variables = ['u', 'v', 'w', 't', 'q', 'z']
+    for var in variables:
+        for lev in levels:
+            channel_names.append(f'{var}{lev}')
+
+    channel_weights = torch.ones(params.n_out_channels, dtype=torch.float32)
+    for c, chn in enumerate(channel_names):
+        if chn in ['u10', 'v10', 'msl', 'tp', 'cloud', 'lh', 'sh', 'ice', 'sst']:
+            channel_weights[c] = 0.1
+        elif chn in ['t2m']:
+            channel_weights[c] = 1.0
+        else:
+            pressure_level = float(chn[1:])
+            channel_weights[c] = 0.001 * pressure_level
+
+    #remormalize the weights to one
+    channel_weights = channel_weights.reshape(1, -1)
+    channel_weights = channel_weights / torch.sum(channel_weights)
+    params['nhw'] = channel_weights
     # print(params['train_data_path'])
     # print(params.dt)
     # print(params.n_history)

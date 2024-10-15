@@ -119,7 +119,7 @@ class SpectralFilterLayer(nn.Module):
         return self.filter(x)
 
 
-class FourierNeuralOperatorBlock(nn.Module):
+class SphericalFourierNeuralOperatorBlock(nn.Module):
     def __init__(
         self,
         forward_transform,
@@ -145,7 +145,7 @@ class FourierNeuralOperatorBlock(nn.Module):
         spectral_layers=1,
         checkpointing=False,
     ):
-        super(FourierNeuralOperatorBlock, self).__init__()
+        super(SphericalFourierNeuralOperatorBlock, self).__init__()
 
         # norm layer
         self.norm0 = norm_layer[0]()  # ((h,w))
@@ -247,7 +247,7 @@ class FourierNeuralOperatorBlock(nn.Module):
     #         return self._forward(x)
 
 
-class FourierNeuralOperatorNet(nn.Module):
+class SphericalFourierNeuralOperatorNet(nn.Module):
     def __init__(
         self,
         spectral_transform="sht",
@@ -276,7 +276,7 @@ class FourierNeuralOperatorNet(nn.Module):
         laplace_weighting=False,
         checkpointing=False,
     ):
-        super(FourierNeuralOperatorNet, self).__init__()
+        super(SphericalFourierNeuralOperatorNet, self).__init__()
 
         self.spectral_transform = spectral_transform
         self.filter_type = filter_type
@@ -418,7 +418,7 @@ class FourierNeuralOperatorNet(nn.Module):
             else:
                 norm_layer = (norm_layer1, norm_layer1)
 
-            block = FourierNeuralOperatorBlock(
+            block = SphericalFourierNeuralOperatorBlock(
                 forward_transform,
                 inverse_transform,
                 self.embed_dim,

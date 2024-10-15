@@ -108,10 +108,14 @@ class GetDataset(Dataset):
         if self.files[year_idx] is None:
             self._open_files(year_idx)
 
-        if local_idx < self.dt * self.n_history:
-            local_idx += self.dt * self.n_history
+        #if local_idx < self.dt * self.n_history:
+        #    local_idx += self.dt * self.n_history
 
-        step = 0 if local_idx >= self.n_samples_per_year - self.dt else self.dt 
+        #step = 0 if local_idx >= self.n_samples_per_year - self.dt else self.dt 
+        if local_idx >= self.n_samples_per_year - self.dt:
+            local_idx = self.n_samples_per_year - 2 
+
+        step = int(self.dt)
 
         #logging.info(f'year_idx is {year_idx}, local_idx is {local_idx}')
 
