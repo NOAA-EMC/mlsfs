@@ -44,9 +44,9 @@ class GetDataset(Dataset):
             'surface': [
                 '10m_u_component_of_wind', '10m_v_component_of_wind', 
                 '2m_temperature', 'mean_sea_level_pressure',
-                'total_precipitation_6hr', 'total_cloud_cover', 
-                'mean_surface_latent_heat_flux', 'mean_surface_sensible_heat_flux',
-                'sea_ice_cover', 'sea_surface_temperature',
+                #'total_precipitation_6hr', 'total_cloud_cover', 
+                #'mean_surface_latent_heat_flux', 'mean_surface_sensible_heat_flux',
+                #'sea_ice_cover', 'sea_surface_temperature',
             ],
             'pressure_level': [
                 'u_component_of_wind', 'v_component_of_wind', 

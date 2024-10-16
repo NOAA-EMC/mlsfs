@@ -3,8 +3,8 @@ base_config: &BASE_CONFIG
     exp_dir: '/lustre/Linlin.Cui/s2s/results'
     train_data_path: '/lustre/Linlin.Cui/s2s/data/train' 
     valid_data_path: '/lustre/Linlin.Cui/s2s/data/test' 
-    global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016_reordered.npy'
-    global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016_reordered.npy'
+    global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016_less.npy'
+    global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016_less.npy'
 
     #architecture related
     nettype: "sfno"
@@ -47,7 +47,7 @@ base_config: &BASE_CONFIG
 
     orography: !!bool True
     orography_file: /lustre/Linlin.Cui/s2s/data/static/geopotential_at_surface_normalized.npy
-    lsmask: !!bool True
+    lsmask: !!bool False
     lsm_file: /lustre/Linlin.Cui/s2s/data/static/land_sea_mask.npy
     lakemask: !!bool False
     lake_file: /lustre/Linlin.Cui/s2s/data/static/lake_cover.npy
@@ -69,4 +69,4 @@ base_config: &BASE_CONFIG
 
 sfno_backbone: &backbone
     <<: *BASE_CONFIG
-    num_channels: 89
+    num_channels: 83
