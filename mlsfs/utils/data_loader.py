@@ -84,17 +84,17 @@ class GetDataset(Dataset):
         self.files[year_idx] = xr.open_zarr(self.files_paths[year_idx])
 
         if self.orography:
-            self.orog = np.load(self.params['orography_file'])[:,::-1] #reverse latitude to [90, -90]
+            self.orog = np.load(self.params['orography_file']) #lat-lon, N-S
         else:
             self.orog = None
 
         if self.lsmask:
-            self.lsm = np.load(self.params['lsm_file'])[:,::-1] #reverse latitude to [90, -90]
+            self.lsm = np.load(self.params['lsm_file']) #lat-lon, N-S
         else:
             self.lsm = None
 
         if self.lakemask:
-            self.lake = np.load(self.params['lake_file'])[:,::-1] #reverse latitude to [90, -90]
+            self.lake = np.load(self.params['lake_file']) #lat-lon, N-S
         else:
             self.lake = None
 

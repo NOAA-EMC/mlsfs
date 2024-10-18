@@ -1,0 +1,73 @@
+base_config: &BASE_CONFIG
+    #data
+    exp_dir: '/lustre/Linlin.Cui/mlsfs/results'
+    train_data_path: '/lustre/Linlin.Cui/mlsfs/data/train' 
+    valid_data_path: '/lustre/Linlin.Cui/mlsfs/data/test' 
+    global_means_path: '/lustre/Linlin.Cui/mlsfs/data/stats/global_mean_1979-2016_less.npy'
+    global_stds_path:  '/lustre/Linlin.Cui/mlsfs/data/stats/global_std_1979-2016_less.npy'
+
+    #architecture related
+    nettype: "sfno"
+    num_blocks: 8
+    sht_grid_type: "legendre-gauss"
+    filter_type: "linear"
+    scale_factor: 3
+    embed_dim: 384
+    num_layers: 8
+    normalization_lyaer: "instance_norm"
+    hard_thredholding_fraction: 1.0
+    use_mpl: !!bool True
+    mlp_mode: "serial"
+    mlp_ratio: 2
+    operator_type: "dhconv"
+    activation_function: "gelu"
+    pos_embed: "none" # "none", "direct" or "frequency". For resoltuion invariance, use add_grid instead or use "frequency"
+
+    # training parameters
+    loss: 'l2'
+    lr: 1E-3
+    max_epochs: 500
+    batch_size: 64
+
+    #scheduler parameters
+    scheduler: 'CosineAnnealingLR' #"StepLR", #ReduceLROnPlateau"
+    scheduler_T_max: 150
+    scheduler_min_lr: 1E-5
+    scheduler_factor: 0.1
+    scheduler_patience: 10
+    scheduler_step_size: 100
+    scheduler_gamma: 0.5
+    lr_warmup_steps: 0
+
+    num_data_workers: 1
+    dt: 1 # how many timesteps ahead the model will predict
+    n_history: 0 #how many previous timesteps to consider
+
+    normalization: 'zscore' #options zscore (minmax not supported) 
+    normalize: !!bool True
+
+    orography: !!bool True
+    orography_file: /lustre/Linlin.Cui/mlsfs/data/static/orog_latlon_ns_normalized.npy
+    lsmask: !!bool False
+    lsm_file: /lustre/Linlin.Cui/mlsfs/data/static/land_sea_mask_latlon_ns.npy
+    lakemask: !!bool False
+    lake_file: /lustre/Linlin.Cui/mlsfs/data/static/lake_cover_latlon_ns.npy
+
+    log_to_screen: !!bool True
+    log_to_wandb: !!bool False
+    save_checkpoint: !!bool True
+
+    enable_nhwc: !!bool False
+    crop_size_x: None
+    crop_size_y: None
+
+    optimizer_type: 'Adam'
+    optimizer_beta1: 0.9
+    optimizer_beta2: 0.95
+    optimizer_max_grad_norm: 32
+
+    two_step_training: !!bool False
+
+sfno_backbone: &backbone
+    <<: *BASE_CONFIG
+    num_channels: 83
