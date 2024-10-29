@@ -1,21 +1,20 @@
 base_config: &BASE_CONFIG
     #data
-    exp_dir: '/lustre/Linlin.Cui/s2s/results'
-    train_data_path: '/lustre/Linlin.Cui/s2s/data/train' 
-    valid_data_path: '/lustre/Linlin.Cui/s2s/data/test' 
-    global_means_path: '/nvidia/sfs/stats/global_mean_1979-2016_less.npy'
-    global_stds_path:  '/nvidia/sfs/stats/global_std_1979-2016_less.npy'
+    exp_dir: '/lustre/Linlin.Cui/mlsfs/results'
+    train_data_path: '/lustre/Linlin.Cui/mlsfs/data/train' 
+    valid_data_path: '/lustre/Linlin.Cui/mlsfs/data/test' 
+    global_means_path: '/lustre/Linlin.Cui/mlsfs/data/stats/global_mean_1979-2016_less_w_sst.npy'
+    global_stds_path:  '/lustre/Linlin.Cui/mlsfs/data/stats/global_std_1979-2016_less_w_sst.npy'
 
     #architecture related
     nettype: "sfno"
-    num_blocks: 8
     sht_grid_type: "legendre-gauss"
     filter_type: "linear"
     scale_factor: 3
-    embed_dim: 48
-    num_layers: 7
+    embed_dim: 162
+    num_layers: 8
     normalization_lyaer: "instance_norm"
-    hard_thredholding_fraction: 0.9
+    hard_thredholding_fraction: 1.0
     use_mpl: !!bool True
     mlp_mode: "serial"
     mlp_ratio: 2
@@ -25,20 +24,21 @@ base_config: &BASE_CONFIG
 
     # training parameters
     loss: 'l2'
-    lr: 1E-5
-    max_epochs: 100
+    lr: 1E-4
+    max_epochs: 300
     batch_size: 64
 
     #scheduler parameters
     scheduler: 'CosineAnnealingLR' #"StepLR", #ReduceLROnPlateau"
-    scheduler_T_max: 50
+    scheduler_T_max: 75
+    scheduler_min_lr: 1E-6
     scheduler_factor: 0.1
     scheduler_patience: 10
     scheduler_step_size: 100
     scheduler_gamma: 0.5
     lr_warmup_steps: 0
 
-    num_data_workers: 2
+    num_data_workers: 1
     dt: 1 # how many timesteps ahead the model will predict
     n_history: 0 #how many previous timesteps to consider
 
@@ -46,11 +46,11 @@ base_config: &BASE_CONFIG
     normalize: !!bool True
 
     orography: !!bool True
-    orography_file: /lustre/Linlin.Cui/s2s/data/static/geopotential_at_surface_normalized.npy
-    lsmask: !!bool False
-    lsm_file: /lustre/Linlin.Cui/s2s/data/static/land_sea_mask.npy
+    orography_file: /lustre/Linlin.Cui/mlsfs/data/static/orog_latlon_ns_normalized.npy
+    lsmask: !!bool True
+    lsm_file: /lustre/Linlin.Cui/mlsfs/data/static/land_sea_mask_latlon_ns.npy
     lakemask: !!bool False
-    lake_file: /lustre/Linlin.Cui/s2s/data/static/lake_cover.npy
+    lake_file: /lustre/Linlin.Cui/mlsfs/data/static/lake_cover_latlon_ns.npy
 
     log_to_screen: !!bool True
     log_to_wandb: !!bool False
@@ -69,4 +69,5 @@ base_config: &BASE_CONFIG
 
 sfno_backbone: &backbone
     <<: *BASE_CONFIG
-    num_channels: 83
+    n_out_channels: 82 #u10, v10, t2m, prmsl, [u, v, w, t, q, z] at 13
+    n_forcing_channels: 2 #time-dependent forcing (tisr + sst)
