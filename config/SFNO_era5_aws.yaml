@@ -12,7 +12,7 @@ base_config: &BASE_CONFIG
     sht_grid_type: "legendre-gauss"
     filter_type: "linear"
     scale_factor: 3
-    embed_dim: 384
+    embed_dim: 192
     num_layers: 8
     normalization_lyaer: "instance_norm"
     hard_thredholding_fraction: 1.0
@@ -25,14 +25,14 @@ base_config: &BASE_CONFIG
 
     # training parameters
     loss: 'l2'
-    lr: 1E-3
-    max_epochs: 500
+    lr: 1E-4
+    max_epochs: 300
     batch_size: 64
 
     #scheduler parameters
     scheduler: 'CosineAnnealingLR' #"StepLR", #ReduceLROnPlateau"
-    scheduler_T_max: 150
-    scheduler_min_lr: 1E-5
+    scheduler_T_max: 75
+    scheduler_min_lr: 1E-6
     scheduler_factor: 0.1
     scheduler_patience: 10
     scheduler_step_size: 100

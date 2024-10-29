@@ -15,6 +15,8 @@ import torchvision.transforms.functional as TF
 
 def reshape_fields(img, inp_or_tar, params, normalize=True, orog=None, lsm=None, lake=None):
     in_channels = np.shape(img)[0] #this will either be N_in_channels or N_out_channels
+    img_shape_x = np.shape(img)[-2]
+    img_shape_y = np.shape(img)[-1]
 
     #if len(np.shape(img)) ==3:
     #      img = np.expand_dims(img, 0)
@@ -22,8 +24,16 @@ def reshape_fields(img, inp_or_tar, params, normalize=True, orog=None, lsm=None,
     if normalize:
         means = np.load(params.global_means_path)[0, :in_channels]
         stds = np.load(params.global_stds_path)[0, :in_channels]
-        img -= means
-        img /= stds
+        if params.two_step_training and inp_or_tar == 'tar':
+            img -= np.expand_dims(means, axis=1)
+            img /= np.expand_dims(stds, axis=1)
+        else:
+            img -= means
+            img /= stds
+
+    if params.two_step_training and inp_or_tar == 'tar':
+        img = np.swapaxes(img, 0, 1)
+        img = np.reshape(img, (in_channels*2, img_shape_x, img_shape_y))
 
     if params.orography and inp_or_tar == 'inp':
         img = np.concatenate((img, np.expand_dims(orog, axis=0)), axis=0)

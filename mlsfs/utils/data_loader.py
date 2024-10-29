@@ -36,8 +36,9 @@ class GetDataset(Dataset):
         self.params = params
         self.location = location
         self.train = train
-        self.dt = 1
-        self.n_history = 0
+        self.dt = params.dt
+        self.n_history = params.n_history
+        self.two_step_training = params.two_step_training
         #ds1 = xr.open_zarr('gs://weatherbench2/datasets/era5/1959-2023_01_10-6h-240x121_equiangular_with_poles_conservative.zarr')
         #ds = xr.open_zarr('gs://weatherbench2/datasets/era5/1959-2022-6h-240x121_equiangular_with_poles_conservative.zarr')
         self.attrs = {
@@ -52,7 +53,7 @@ class GetDataset(Dataset):
                 'u_component_of_wind', 'v_component_of_wind', 
                 'vertical_velocity', 'temperature', 'specific_humidity', 'geopotential'
             ],
-            'forcing': ['toa_incident_solar_radiation'],
+            'forcing': ['toa_incident_solar_radiation', 'sea_surface_temperature'],
         }
         self.levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
 
@@ -113,9 +114,13 @@ class GetDataset(Dataset):
 
         #step = 0 if local_idx >= self.n_samples_per_year - self.dt else self.dt 
         if local_idx >= self.n_samples_per_year - self.dt:
-            local_idx = self.n_samples_per_year - 2 
+            local_idx = self.n_samples_per_year - 2 * self.dt
 
         step = int(self.dt)
+
+        if self.two_step_training:
+            if local_idx >= self.n_samples_per_year - 2 * self.dt:
+                local_idx = self.n_samples_per_year - 3 * self.dt
 
         #logging.info(f'year_idx is {year_idx}, local_idx is {local_idx}')
 
@@ -123,7 +128,10 @@ class GetDataset(Dataset):
         for key, variables in self.attrs.items():
             for var in variables:
                 if key == 'surface' or key == 'forcing':
-                    values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
+                    if self.two_step_training:
+                        values = self.files[year_idx][var].isel(time=np.arange(local_idx, local_idx+step+2)).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
+                    else:
+                        values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
 
                     # check nan
                     if np.sum(np.isnan(values)) > 1:
@@ -132,7 +140,10 @@ class GetDataset(Dataset):
                         data.append(values)
 
                 elif key == 'pressure_level':
-                    values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
+                    if self.two_step_training:
+                        values = self.files[year_idx][var].isel(time=np.arange(local_idx, local_idx+step+2)).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
+                    else:
+                        values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
                     for ilev in np.arange(len(self.levels)):
                         #if np.sum(np.isnan(values[:, ilev, :, :])) > 1:
                         #    data.append(np.nan_to_num(values[:, ilev, ::-1, :], nan=0.0))
@@ -144,5 +155,9 @@ class GetDataset(Dataset):
         
         data = np.array(data)
 
-        return reshape_fields(np.squeeze(data[:,0,:,:]), 'inp', self.params, self.normalize, self.orog, self.lsm, self.lake), \
-            reshape_fields(np.squeeze(data[:,1,:,:]), 'tar', self.params, self.normalize, self.orog, self.lsm, self.lake)
+        if self.two_step_training:
+            return reshape_fields(np.squeeze(data[:,0,:,:]), 'inp', self.params, self.normalize, self.orog, self.lsm, self.lake), \
+                reshape_fields(np.squeeze(data[:self.params.n_out_channels,1:,:,:]), 'tar', self.params, self.normalize, self.orog, self.lsm, self.lake)
+        else:
+            return reshape_fields(np.squeeze(data[:,0,:,:]), 'inp', self.params, self.normalize, self.orog, self.lsm, self.lake), \
+                reshape_fields(np.squeeze(data[:self.params.n_out_channels,1,:,:]), 'tar', self.params, self.normalize, self.orog, self.lsm, self.lake)
