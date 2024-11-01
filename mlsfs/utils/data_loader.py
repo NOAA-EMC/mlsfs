@@ -39,23 +39,13 @@ class GetDataset(Dataset):
         self.dt = params.dt
         self.n_history = params.n_history
         self.two_step_training = params.two_step_training
-        #ds1 = xr.open_zarr('gs://weatherbench2/datasets/era5/1959-2023_01_10-6h-240x121_equiangular_with_poles_conservative.zarr')
-        #ds = xr.open_zarr('gs://weatherbench2/datasets/era5/1959-2022-6h-240x121_equiangular_with_poles_conservative.zarr')
+
         self.attrs = {
-            'surface': [
-                '10m_u_component_of_wind', '10m_v_component_of_wind', 
-                '2m_temperature', 'mean_sea_level_pressure',
-                #'total_precipitation_6hr', 'total_cloud_cover', 
-                #'mean_surface_latent_heat_flux', 'mean_surface_sensible_heat_flux',
-                #'sea_ice_cover', 'sea_surface_temperature',
-            ],
-            'pressure_level': [
-                'u_component_of_wind', 'v_component_of_wind', 
-                'vertical_velocity', 'temperature', 'specific_humidity', 'geopotential'
-            ],
-            'forcing': ['toa_incident_solar_radiation', 'sea_surface_temperature'],
+            'surface': params.vars_surface,
+            'pressure_level': params.vars_pl,
+            'forcing': params.vars_forcing,
         }
-        self.levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
+        self.levels = params.levels
 
         self.orography = params.orography
         self.lsmask = params.lsmask
