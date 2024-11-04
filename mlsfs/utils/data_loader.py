@@ -38,7 +38,8 @@ class GetDataset(Dataset):
         self.train = train
         self.dt = params.dt
         self.n_history = params.n_history
-        self.two_step_training = params.two_step_training
+        self.multi_step_training = params.multi_step_training
+        self.nfutures = params.nfutures
 
         self.attrs = {
             'surface': params.vars_surface,
@@ -108,18 +109,18 @@ class GetDataset(Dataset):
 
         step = int(self.dt)
 
-        if self.two_step_training:
-            if local_idx >= self.n_samples_per_year - 2 * self.dt:
-                local_idx = self.n_samples_per_year - 3 * self.dt
+        if self.multi_step_training:
+            if local_idx >= self.n_samples_per_year - self.nfutures * self.dt:
+                local_idx = self.n_samples_per_year - (self.nfutures + 1) * self.dt
 
-        #logging.info(f'year_idx is {year_idx}, local_idx is {local_idx}')
+        #logging.info(f'year_idx is {year_idx}, local_idx is {local_idx}, future index is {local_idx+step+self.nfutures}')
 
         data = []
         for key, variables in self.attrs.items():
             for var in variables:
                 if key == 'surface' or key == 'forcing':
-                    if self.two_step_training:
-                        values = self.files[year_idx][var].isel(time=np.arange(local_idx, local_idx+step+2)).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
+                    if self.multi_step_training:
+                        values = self.files[year_idx][var].isel(time=np.arange(local_idx, local_idx+step+self.nfutures)).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
                     else:
                         values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'latitude', 'longitude').values[:,::-1,:] #reverse latitude
 
@@ -130,8 +131,8 @@ class GetDataset(Dataset):
                         data.append(values)
 
                 elif key == 'pressure_level':
-                    if self.two_step_training:
-                        values = self.files[year_idx][var].isel(time=np.arange(local_idx, local_idx+step+2)).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
+                    if self.multi_step_training:
+                        values = self.files[year_idx][var].isel(time=np.arange(local_idx, local_idx+step+self.nfutures)).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
                     else:
                         values = self.files[year_idx][var].isel(time=[local_idx, local_idx+step]).transpose('time', 'level', 'latitude', 'longitude').sel(level=self.levels).values
                     for ilev in np.arange(len(self.levels)):
@@ -145,7 +146,7 @@ class GetDataset(Dataset):
         
         data = np.array(data)
 
-        if self.two_step_training:
+        if self.multi_step_training:
             return reshape_fields(np.squeeze(data[:,0,:,:]), 'inp', self.params, self.normalize, self.orog, self.lsm, self.lake), \
                 reshape_fields(np.squeeze(data[:self.params.n_out_channels,1:,:,:]), 'tar', self.params, self.normalize, self.orog, self.lsm, self.lake)
         else:

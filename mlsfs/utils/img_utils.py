@@ -24,16 +24,16 @@ def reshape_fields(img, inp_or_tar, params, normalize=True, orog=None, lsm=None,
     if normalize:
         means = np.load(params.global_means_path)[0, :in_channels]
         stds = np.load(params.global_stds_path)[0, :in_channels]
-        if params.two_step_training and inp_or_tar == 'tar':
+        if params.multi_step_training and inp_or_tar == 'tar':
             img -= np.expand_dims(means, axis=1)
             img /= np.expand_dims(stds, axis=1)
         else:
             img -= means
             img /= stds
 
-    if params.two_step_training and inp_or_tar == 'tar':
+    if params.multi_step_training and inp_or_tar == 'tar':
         img = np.swapaxes(img, 0, 1)
-        img = np.reshape(img, (in_channels*2, img_shape_x, img_shape_y))
+        img = np.reshape(img, (in_channels*params.nfutures, img_shape_x, img_shape_y))
 
     if params.orography and inp_or_tar == 'inp':
         img = np.concatenate((img, np.expand_dims(orog, axis=0)), axis=0)

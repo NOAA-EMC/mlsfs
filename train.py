@@ -84,11 +84,15 @@ class Trainer:
         else:
             raise Exception("Model {params.nettype} is not implemented")
 
+        if params.loss == 'mse':
+            slef.loss_obj = nn.MSELoss().to(self.device)
+        elif params.loss == 'l2':
+            logging.info(f'Using l2 loss')
+
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=params.lr)
 
         if params.enable_amp:
             self.gscaler = amp.GradScaler()
-
 
         #Move model to GPUs
         if dist.is_initialized():
@@ -106,9 +110,10 @@ class Trainer:
 
         self.iters = 0
         self.startEpoch = 0
-        if params.two_step_training:
-            if params.resuming == False and params.pretrained == True:
-                logging.info("Starting from pretrained one-step afno model at %s"%params.pretrained_ckpt_path)
+        if params.multi_step_training:
+            #if params.resuming == False and params.pretrained == True:
+            if params.pretrained == True:
+                logging.info("Starting from pretrained one-step sfno model at %s"%params.pretrained_ckpt_path)
                 self.restore_checkpoint(params.pretrained_ckpt_path)
                 self.iters = 0
                 self.startEpoch = 0
@@ -119,7 +124,12 @@ class Trainer:
         if params.scheduler == 'ReduceLROnPlateau':
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.2, patience=5, mode='min')
         elif params.scheduler == 'CosineAnnealingLR':
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=params.max_epochs)
+            #if not hasattr(params, "scheduler_min_lr"):
+            #    params["scheduler_min_lr"] = 0.0
+            logging.info(f'scheduler: CosineAnnealingLR, T_max: {params.scheduler_T_max}, eta_min: {params.scheduler_min_lr}')
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=params.scheduler_T_max, eta_min=params.scheduler_min_lr)
+        elif params.scheduler == 'StepLR':
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=params.scheduler_step_size, gamma=params.scheduler_gamma)
         else:
             self.scheduler = None
 
@@ -146,16 +156,8 @@ class Trainer:
 
             if self.params.scheduler == 'ReduceLROnPlateau':
                 self.scheduler.step(valid_logs['valid_loss'])
-            elif self.params.scheduler == 'CosineAnnealingLR':
+            elif self.params.scheduler is not None:
                 self.scheduler.step()
-                if self.epoch >= self.params.max_epochs:
-                    logging.info("Terminating training after reaching params.max_epochs while LR scheduler is set to CosineAnnealingLR")
-                    exit()
-            else:
-                if self.epoch >= self.params.max_epochs:
-                    logging.info("Terminating training after reaching params.max_epochs while LR scheduler is set to CosineAnnealingLR")
-                    exit()
-
 
             if self.world_rank == 0:
                 if self.params.save_checkpoint:
@@ -177,7 +179,7 @@ class Trainer:
         #train_loss = 0
         self.model.train()
 
-        #max_train_batch = 10
+        max_train_batch = 10
 
         for i, data in enumerate(self.train_data_loader, 0):
             #logging.info(f'training on batch {i}')
@@ -188,23 +190,39 @@ class Trainer:
             
             inp, tar = map(lambda x: x.to(self.device, dtype=torch.float), data)
             #inp, tar = inp.to(self.device, dtype=torch.float), tar.to(self.device, dtype=torch.float)
+            if self.params.multi_step_training:
+                forcing = inp[:, self.params.n_out_channels:]
+            if self.params.nhw is not None:
+                self.params.nhw.to(self.device)
         
             tr_start = time.time()
 
             self.model.zero_grad()
             with amp.autocast(self.params.enable_amp):
             #with torch.amp.autocast('cuda'):
-                if self.params.two_step_training:
-                    gen_step_one = self.model(inp) #.to(self.device, dtype=torch.float)
-                    loss_step_one = l2loss_sphere(self.quadrature, gen_step_one, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
-                    ##Temporarily disable step two because of memory issue (lcui)
-                    #gen_step_two = self.model(gen_step_one) #.to(self.device, dtype=torch.float)
-                    #loss_step_two = spectral_l2loss_sphere(self.solver, gen_step_two, tar[:, self.params.n_out_channels:2*self.params.n_out_channels], relative=False)
-                    #loss = loss_step_one + loss_step_two
-                    loss = loss_step_one
+                
+                #torch.autograd.set_detect_anomaly(True)
+                if self.params.multi_step_training:
+                    gen_step_one = self.model(inp).to(self.device, dtype=torch.float)
+                    gen_step_two = self.model(torch.cat((gen_step_one, forcing), axis=1)).to(self.device, dtype = torch.float)
+                    if self.params.loss == 'mse':
+                        loss_step_one = self.loss_obj(gen_step_one, tar[:, 0:self.params.n_out_channels])
+                        loss_step_two = self.loss_obj(gen_step_two, tar[:, self.params.n_out_channels:2*self.params.n_out_channels])
+
+                    elif self.params.loss == 'l2':
+                        loss_step_one = l2loss_sphere(self.quadrature, gen_step_one, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
+                        loss_step_two = l2loss_sphere(self.quadrature, gen_step_two, tar[:, self.params.n_out_channels:2*self.params.n_out_channels], self.params.nhw.to(self.device))
+                    else:
+                        raise ValueError(f'loss {self.params.loss} is not supported!')
+                    loss = loss_step_one + loss_step_two
                 else:
                     gen = self.model(inp) #.to(self.device, dtype=torch.float)
-                    loss = l2loss_sphere(self.quadrature, gen, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
+                    if self.params.loss == 'mse':
+                        loss = self.loss_obj(gen, tar[:, 0:self.params.n_out_channels])
+                    elif self.params.loss == 'l2':
+                        loss = l2loss_sphere(self.quadrature, gen, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
+                    else:
+                        raise ValueError(f'loss {self.params.loss} is not supported!')
             
 
             #train_loss += (loss.item()/self.params.world_size)*inp.size[0]
@@ -213,6 +231,9 @@ class Trainer:
                 self.gscaler.scale(loss).backward()
                 self.gscaler.step(self.optimizer)
             else:
+                #with torch.autograd.detect_anomaly(True):
+                #    loss.backward()
+                #    self.optimizer.step()
                 loss.backward()
                 self.optimizer.step()
 
@@ -245,7 +266,7 @@ class Trainer:
         return tr_time, logs
 
     def validate_one_epoch(self):
-        #max_valid_batch = 2 #do validation on first 8 batches
+        max_valid_batch = 2 #do validation on first 8 batches
 
         if self.params.normalization == 'minmax':
             raise Exception("minmax normalization not supported")
@@ -269,16 +290,19 @@ class Trainer:
                 #if i >= max_valid_batch:
                 #    break
                 inp, tar = map(lambda x: x.to(self.device, dtype=torch.float), data)
+                if self.params.nhw is not None:
+                    self.params.nhw.to(self.device)
 
-                if self.params.two_step_training:
+                if self.params.multi_step_training:
+                    forcing = inp[:, self.params.n_out_channels:]
+
+                if self.params.multi_step_training:
                     gen_step_one = self.model(inp.to(self.device, dtype=torch.float))
                     loss_step_one = l2loss_sphere(self.quadrature, gen_step_one, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
 
-                    ##Temporarily disable step two because of memory issue (lcui)
-                    #gen_step_two = self.model(gen_step_one.to(self.device, dtype=torch.float))
-                    #loss_step_two = spectral_l2loss_sphere(self.solver, gen_step_two, tar[:, self.params.n_out_channels:2*self.params.n_out_channels], relative=False)
-                    #valid_loss += loss_step_one + loss_step_two
-                    valid_loss += loss_step_one
+                    gen_step_two = self.model(torch.cat((gen_step_one, forcing), axis=1)).to(self.device, dtype=torch.float)
+                    loss_step_two = l2loss_sphere(self.solver, gen_step_two, tar[:, self.params.n_out_channels:2*self.params.n_out_channels], self.params.nhw.to(self.device))
+                    valid_loss += loss_step_one + loss_step_two
                 else:
                     gen = self.model(inp.to(self.device, dtype = torch.float))
                     valid_loss += l2loss_sphere(self.quadrature, gen, tar[:, 0:self.params.n_out_channels], self.params.nhw.to(self.device))
@@ -286,7 +310,7 @@ class Trainer:
                 valid_steps += 1.
 
                  #direct prediction weighted rmse
-                if self.params.two_step_training:
+                if self.params.multi_step_training:
                     valid_weighted_rmse += weighted_rmse_torch(gen_step_one, tar[:,0:self.params.n_out_channels])
                 else:
                     valid_weighted_rmse += weighted_rmse_torch(gen, tar[:,0:self.params.n_out_channels])
@@ -349,8 +373,8 @@ class Trainer:
         print(self.iters)
         self.startEpoch = checkpoint['epoch']
         print(self.startEpoch)
-        if self.params.resuming:  #restore checkpoint is used for finetuning as well as resuming. If finetuning (i.e., not resuming), restore checkpoint does not load optimizer state, instead uses config specified lr.
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])        
+        #if self.params.resuming:  #restore checkpoint is used for finetuning as well as resuming. If finetuning (i.e., not resuming), restore checkpoint does not load optimizer state, instead uses config specified lr.
+        #    self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])        
 
 
 
@@ -408,7 +432,6 @@ if __name__ == "__main__":
 
     torch.cuda.set_device(local_rank)
     torch.backends.cudnn.benchmark = True
-    torch.autograd.set_detect_anomaly(True)
 
     # set up output directory
     expDir = os.path.join(params.exp_dir, args.config, str(args.run_num))
@@ -421,27 +444,33 @@ if __name__ == "__main__":
     params['checkpoint_path'] = os.path.join(expDir, 'training_checkpoints/ckpt.tar')
     params['best_checkpoint_path'] = os.path.join(expDir, 'training_checkpoints/best_ckpt.tar')
 
-    params['out_channels'] = np.arange(params.num_channels-1) #exclde tisr
-    params['n_out_channels'] = params.num_channels-1 #exclude tisr
+    params['n_out_channels'] = params.n_out_channels
+    params['out_channels'] = np.arange(params.n_out_channels)
     
+    params['n_in_channels'] = params.n_out_channels + params.n_forcing_channels
+
+    nstatic = 0
     if params.orography:
         logging.info(f'Adding orography, in_channels add 1')
-        params.num_channels += 1
+        params.n_in_channels += 1
+        nstatic += 1
 
     if params.lsmask:
         logging.info(f'Adding lsm, in_channels add 1')
-        params.num_channels += 1
+        params.n_in_channels += 1
+        nstatic += 1
 
     if params.lakemask:
         logging.info(f'Adding lake, in_channels add 1')
-        params.num_channels += 1
-
-    params['in_channels'] = np.arange(params.num_channels)
-    params['n_in_channels'] = params.num_channels
+        params.n_in_channels += 1
+        nstatic += 1
+     
+    params['nstatic'] = nstatic
+    params['in_channels'] = np.arange(params.n_in_channels)
     logging.info(f"n_in_channels: {params['n_in_channels']}")
     logging.info(f"n_out_channels: {params['n_out_channels']}")
 
-    channel_names = ['u10', 'v10', 't2m', 'msl', 'tp', 'cloud', 'lh', 'sh', 'ice', 'sst']
+    channel_names = ['u10', 'v10', 't2m', 'msl', 'tcwv']
     levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
     variables = ['u', 'v', 'w', 't', 'q', 'z']
     for var in variables:
@@ -450,7 +479,8 @@ if __name__ == "__main__":
 
     channel_weights = torch.ones(params.n_out_channels, dtype=torch.float32)
     for c, chn in enumerate(channel_names):
-        if chn in ['u10', 'v10', 'msl', 'tp', 'cloud', 'lh', 'sh', 'ice', 'sst']:
+        #if chn in ['u10', 'v10', 'msl', 'tp', 'cloud', 'lh', 'sh', 'ice', 'sst']:
+        if chn in ['u10', 'v10', 'msl', 'tcwv']:
             channel_weights[c] = 0.1
         elif chn in ['t2m']:
             channel_weights[c] = 1.0
@@ -462,16 +492,7 @@ if __name__ == "__main__":
     channel_weights = channel_weights.reshape(1, -1)
     channel_weights = channel_weights / torch.sum(channel_weights)
     params['nhw'] = channel_weights
-    # print(params['train_data_path'])
-    # print(params.dt)
-    # print(params.n_history)
-    # print(params.lr)
-    # print(params.two_step_training)
-    # print(params.enable_amp)
-    # print(params.crop_size_x)
-    # print(params.crop_size_y)
-    # print(params.resuming)
-    # print(f'dist is {dist.is_initialized()}')
+    #params['nhw'] = None
 
     if world_rank == 0:
         logging_utils.log_to_file(logger_name=None, log_filename=os.path.join(expDir, 'out.log'))
