@@ -1,3 +1,7 @@
+'''
+Taken from https://github.com/NVIDIA/modulus/blob/main/modulus/utils/insolation.py
+'''
+
 import numpy as np
 import pandas as pd
 
@@ -53,7 +57,6 @@ def insolation(dates, lat, lon, S=1., daily=False, enforce_2d=False, clip_zero=T
     lambda_ = lambda_m + 2. * ecc * np.sin(lambda_m - om)
     # Solar declination
     dec = np.arcsin(np.sin(eps) * np.sin(lambda_))
-    breakpoint()
     # Hour angle
     h = 2 * np.pi * (days_arr + new_lon / 360.)
     # Distance

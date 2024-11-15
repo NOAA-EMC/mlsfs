@@ -6,7 +6,7 @@ import gcsfs
 
 vars1 = [
     '10m_u_component_of_wind', '10m_v_component_of_wind', 
-    '2m_temperature', 'mean_sea_level_pressure',
+    '2m_temperature', 'mean_sea_level_pressure', 'total_column_water_vapour',,
     'total_precipitation_6hr', 'sea_ice_cover', 'total_cloud_cover', 'sea_surface_temperature',
     'mean_surface_latent_heat_flux', 'mean_surface_sensible_heat_flux', 
     #'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux'
@@ -44,7 +44,7 @@ data_dict = {
 for k, v in data_dict.items():
     outdir = f'{local_zarr_path}/{k}'
     outdir = pathlib.Path(outdir)
-    outdir.mkdir(parent=)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     for year in v:
         print(year)

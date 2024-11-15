@@ -12,7 +12,7 @@ module load nvhpc-hpcx-cuda12/24.7
 #activate conda environment
 
 source /lustre/Linlin.Cui/miniforge3/etc/profile.d/conda.sh
-conda activate myenv
+conda activate mlsfs
 
 MPI_HOSTS=$(scontrol show hostname $SLURM_NODELIST | sed "s/$/:$SLURM_NTASKS_PER_NODE/" | xargs | sed 's/ /,/g')
 nodes=$( scontrol show hostname $SLURM_NODELIST )
