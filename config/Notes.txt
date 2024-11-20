@@ -1,0 +1,108 @@
+num2: (88+tisr+orog+lsm)
+    max_train_batch = 10
+    max_valid_batch = 2
+
+num3: (88+tisr+orog+lsm)
+   single gpu, l2loss
+
+num4: (88+tisr+orog+lsm)
+   single gpu, MSE
+
+num5:(88+tisr+orog+lsm)
+   one node, multiple gpus
+   full batches training and validation
+   cosine scheduler
+     filter_type = nonlinear
+     embed_dim = 256
+     num_layers = 12
+     mlp_mode = "distributed"
+     lr = 1e-3
+     loss function: spectral l2
+
+num6: (88+tisr+orog+lsm)
+   one noe, mltiple gpus
+   changed haperparameters
+     filter_type = linear
+     embed_dim = 48
+     num_layers = 7
+     mlp_mode = serial
+     lr = 1e-4
+     loss function: geometricLpLoss (p=2)
+
+
+num7: 
+    copy of num6
+    change lr=1e-5
+
+num8: (removed precip, cloud, and marine varialbes, and lsm)
+
+    hyperparameters the same as num6
+    Wrong orog data, S-N instread of N-S
+
+num9: 
+    copy of num8, check input fields 
+    stepLR: 0.001, step_size: 100, scheduler_gamma: 0.5, max_epochs=500
+    results: the model looks correct, with both t2m and z500 seems to match ERA5. However, because step_size is too big, 
+             lr didn't change when validation loss reaches plateau, canceled the job.
+
+num10: (82+tisr+orog)
+    copy of num9, change scheduler to Cosine, lr=1e-3, max_epochs=500, t_max=150, eta_min=1e-5
+    embed_dim=384, num_layers=8
+    results: the model seems overfitting, with training loss keep decreasing while validation loss increasing
+
+num11 (azure): (82+tisr+sst+orog+lsm)
+    run on Azure
+    embed_dim=384, num_layers=8
+    lr=1e-3, t_max=150, eta_min=1e-6
+    results: similar results with num10, overfitting after epoch 11
+    
+num12 (aws): 
+    copy of num10
+    change lr=1e-4, and eta_min=1e-6, max_epochs=300, t_max=150
+    embed_dim=384, num_layers=8
+    results: reducing lr only cannot resolve overfitting issue
+
+num13 (azure):
+   copy of num11
+   change lr=1e-4, and eta_min=1e-6, max_epochs=300, t_max=75
+   embed_dim=72, num_layers=8
+
+num14 (aws):
+  copy of num12
+  change lr=1e-4, and eta_min=1e-6, max_epochs=300, t_max=75
+  embed_dim=192, num_layers=8
+   
+num15 (azure):
+  copy of num13
+  embed_dim=192
+
+num16-18 (aws):
+    two-step training from num15 (epoch27), num16 and num17 play with loss calculation. Final exp is num18
+    num18(rerun on azure because aws reservations has ended)
+
+num19 (aws):
+    copyt of num15, embed_dim=132, 
+    config/SFNO_era5_azure.yaml
+    sfno_backbone
+    results: epoch=6, model blew up
+
+num20 (aws):
+    copy of num15, embed_dim=162
+
+num21 (azure):
+    copy of num15, embed_dim=182
+
+num22 (azure):
+    copy of num15, embed_dim=192, loss is MSE, no weighted loss
+
+num23 (azure):
+    copy of num15, add tcwv, no weighted loss
+
+num24 (azure):
+   copy of num23, embed_dim=256
+
+num25 (Azure)
+   copy of num23, embed_dim=202
+
+num26 (azure):
+   copy of num23, turn on weighted loss

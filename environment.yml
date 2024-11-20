@@ -1,0 +1,27 @@
+name: mlsfs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+# basic
+  - scipy
+  - numpy
+  - matplotlib
+# xarray related
+  - netcdf4
+  - xarray
+  - dask[complete]
+  - zarr
+  - cftime
+# filesystem
+  - gcsfs
+  - s3fs
+  - fsspec
+# jupyte
+  - jupyter
+  - ipython
+  - ruamel.yaml
+  - pip
+
+  - pip:
+    - torch-harmonics
