@@ -3,13 +3,14 @@ base_config: &BASE_CONFIG
     exp_dir: '/lustre/Linlin.Cui/mlsfs/results'
     train_data_path: '/lustre/Linlin.Cui/mlsfs/data/train' 
     valid_data_path: '/lustre/Linlin.Cui/mlsfs/data/test' 
-    global_means_path: '/lustre/Linlin.Cui/mlsfs/data/stats/global_mean_1979-2016_less_w_sst.npy'
-    global_stds_path:  '/lustre/Linlin.Cui/mlsfs/data/stats/global_std_1979-2016_less_w_sst.npy'
+    global_means_path: '/lustre/Linlin.Cui/mlsfs/data/stats/global_mean_1979-2016_chn85.npy'
+    global_stds_path:  '/lustre/Linlin.Cui/mlsfs/data/stats/global_std_1979-2016_chn85.npy'
 
     #architecture related
     nettype: "sfno"
     sht_grid_type: "legendre-gauss"
     filter_type: "linear"
+    model_grid: "equiangular"
     scale_factor: 3
     embed_dim: 192
     num_layers: 8
@@ -37,6 +38,7 @@ base_config: &BASE_CONFIG
     scheduler_step_size: 100
     scheduler_gamma: 0.5
     lr_warmup_steps: 0
+
 
     num_data_workers: 1
     dt: 1 # how many timesteps ahead the model will predict
@@ -66,25 +68,13 @@ base_config: &BASE_CONFIG
     optimizer_max_grad_norm: 32
 
     multi_step_training: !!bool False
-    nfutures: 0 
+    nfutures: 0
 
 sfno_backbone: &backbone
     <<: *BASE_CONFIG
-    n_out_channels: 82 #u10, v10, t2m, prmsl, [u, v, w, t, q, z] at 13
+    n_out_channels: 83 #u10, v10, t2m, prmsl, tcwv, [u, v, w, t, q, z] at 13
     n_forcing_channels: 2 #time-dependent forcing (tisr + sst)
-    vars_surface: ['10m_u_component_of_wind', '10m_v_component_of_wind', '2m_temperature', 'mean_sea_level_pressure']
+    vars_surface: ['10m_u_component_of_wind', '10m_v_component_of_wind', '2m_temperature', 'mean_sea_level_pressure', 'total_column_water_vapour']
     vars_pl: ['u_component_of_wind', 'v_component_of_wind', 'vertical_velocity', 'temperature', 'specific_humidity', 'geopotential']
     vars_forcing: ['toa_incident_solar_radiation', 'sea_surface_temperature']
     levels: [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50]
-
-sfno_backbone_finetune:
-    <<: *backbone
-    lr: 3E-7
-    max_epochs: 20
-    scheduler: "CosineAnnealingLR"
-    scheduler_T_max: 20
-    batch_size: 256
-    pretrained: !!bool True
-    multi_step_training: !!bool True
-    nfutures: 3
-    pretrained_ckpt_path: '/lustre/Linlin.Cui/mlsfs/results/sfno_backbone_finetune/18/training_checkpoints/best_ckpt.tar'

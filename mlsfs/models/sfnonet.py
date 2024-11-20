@@ -252,6 +252,7 @@ class SphericalFourierNeuralOperatorNet(nn.Module):
         self,
         spectral_transform="sht",
         filter_type="non-linear",
+        model_grid="equiangular",
         img_size=(121, 240),
         scale_factor=6,
         in_chans=89,
@@ -280,6 +281,7 @@ class SphericalFourierNeuralOperatorNet(nn.Module):
 
         self.spectral_transform = spectral_transform
         self.filter_type = filter_type
+        self.model_grid = model_grid
         self.img_size = img_size
         self.scale_factor = scale_factor
         self.in_chans = in_chans
@@ -364,10 +366,10 @@ class SphericalFourierNeuralOperatorNet(nn.Module):
 
         if self.spectral_transform == "sht":
             self.trans_down = harmonics.RealSHT(
-                *self.img_size, lmax=modes_lat, mmax=modes_lon, grid="equiangular"
+                *self.img_size, lmax=modes_lat, mmax=modes_lon, grid=self.model_grid
             ).float()
             self.itrans_up = harmonics.InverseRealSHT(
-                *self.img_size, lmax=modes_lat, mmax=modes_lon, grid="equiangular"
+                *self.img_size, lmax=modes_lat, mmax=modes_lon, grid=self.model_grid
             ).float()
             self.trans = harmonics.RealSHT(
                 self.h, self.w, lmax=modes_lat, mmax=modes_lon, grid="legendre-gauss"
